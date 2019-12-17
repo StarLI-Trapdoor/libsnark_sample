@@ -150,6 +150,43 @@ std::vector<std::string> split(std::string& str, std::string delim) {
     return res;
 }
 
+template<typename HashT>
+libff::bit_vector hash256(std::string str) {
+    libff::bit_vector operand;
+    for (int i = 0; i < str.size(); i++) {
+        char tmpc[5];
+        sprintf(tmpc, "%x", str[i]);
+        std::string tmps(tmpc);
+        libff::bit_vector s = hexToBin(tmps);
+        operand.insert(operand.end(), s.begin(), s.end());
+    }
+    //padding input
+    size_t size = operand.size();
+    char tmpc[20];
+    sprintf(tmpc, "%x", size);
+    std::string tmps(tmpc);
+    libff::bit_vector s = hexToBin(tmps);
+    operand.push_back(1);
+    for (int i = size + 1; i < HashT::get_block_len() - s.size(); i++) {
+        operand.push_back(0);
+    }
+    operand.insert(operand.end(), s.begin(), s.end());
+    libff::bit_vector res = HashT::get_hash(operand);
+    return res;
+}
+
+template<typename HashT>
+void calcAllLevels(std::vector<std::vector<libff::bit_vector>>& levels, size_t level) {
+    //level 1 upper layer
+    for (int i = level; i > 0; i--) {
+        for (int j = 0; j < levels[i].size(); j += 2) {
+            libff::bit_vector input = levels[i][j];
+            input.insert(input.end(), levels[i][j+1].begin(), levels[i][j+1].end());
+            levels[i-1].push_back(HashT::get_hash(input));
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     libff::default_ec_pp::init_public_params();
     typedef libff::default_ec_pp ppzksnark_ppT;
@@ -212,38 +249,43 @@ int main(int argc, char* argv[]) {
         f_pk >> pk;
         f_pk.close();
 
-	//load a valid path
-        std::fstream input("merkle.txt", std::ios_base::in);
-        libff::bit_vector leaf, root, address_bits;
+        libff::bit_vector leaf, root, address_bits(tree_depth);
         size_t address;
         std::vector<merkle_authentication_node> path(tree_depth);
-        for (std::string line; std::getline(input, line); ) {
-            std::cout << line << std::endl;
-            auto n = line.find(": ");
-            if (n != std::string::npos) {
-                std::string key = line.substr(0, n);
-                std::string val = line.substr(n + 2, line.size());
-                std::cout << "key: " << key << ", val: " << val << std::endl;
-                if (key == "leaf") {
-                    leaf = hexToBin(val);
-                } else if (key == "root") {
-                    root = hexToBin(val);
-                } else if (key == "index") {
-                    address = std::stoi(val);
-                    for (int i = 0; i < tree_depth; i++) {
-                        int tmp = (address & 0x01);
-                        address_bits.insert(address_bits.begin(), (tmp == 1) ? true : false);
-                        address >> 1;
-                        std::cout << address_bits[i] << std::endl;
-                    }
-                } else if (key == "path") {
-                    std::vector<std::string> tmp = split(val, " ");
-                    for (int i = 0; i < tmp.size(); i++) {
-                        path[i] = hexToBin(tmp[i]);
-                    }
-                }
-            }
+
+        //generate witness
+        std::vector<std::vector<libff::bit_vector>> levels(tree_depth);
+        //level 2 leaves left most --> right most
+	int leaf_count = std::pow(2, tree_depth);
+        for (int i = 0; i < leaf_count; i++) {
+            libff::bit_vector tmp = hash256<HashT>(argv[i+2]);
+            //std::cout << *binToHex<HashT>(tmp) << std::endl;
+            levels[tree_depth - 1].push_back(tmp);
         }
+
+	calcAllLevels<HashT>(levels, tree_depth-1);
+        libff::bit_vector input = levels[0][0];
+        input.insert(input.end(), levels[0][1].begin(), levels[0][1].end());
+        root = HashT::get_hash(input);
+
+        address = std::stoi(argv[10]);
+        leaf = levels[tree_depth-1][address];
+        std::cout << address << std::endl;
+        int addr = address;
+        for (int i = 0; i < tree_depth; i++) {
+            int tmp = (addr & 0x01);
+            address_bits[i] = tmp;
+            addr = addr / 2;
+            std::cout << address_bits[tree_depth-1-i] << std::endl;
+        }
+
+        //Fill in the path
+        size_t index = address;
+        for (int i = tree_depth - 1; i >= 0; i--) {
+            path[i] = address_bits[tree_depth-1-i] == 0 ? levels[i][index+1] : levels[i][index-1];
+            index = index / 2;
+        }
+        std::cout << "root is " << *binToHex<HashT>(root) << std::endl;
 
 	//generate proof
         auto proof = generate_read_proof<ppzksnark_ppT, FieldT, HashT>(
