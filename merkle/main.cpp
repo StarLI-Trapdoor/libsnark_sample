@@ -11,7 +11,7 @@ using namespace libsnark;
 
 
 template<typename ppzksnark_ppT, typename FieldT, typename HashT>
-r1cs_ppzksnark_keypair<ppzksnark_ppT> generate_read_keypair(const size_t tree_depth)
+r1cs_gg_ppzksnark_keypair<ppzksnark_ppT> generate_read_keypair(const size_t tree_depth)
 {
     protoboard<FieldT> pb;
 
@@ -21,11 +21,11 @@ r1cs_ppzksnark_keypair<ppzksnark_ppT> generate_read_keypair(const size_t tree_de
 
     std::cout << "Number of R1CS constraints: " << cs.num_constraints() << std::endl;
 
-    return r1cs_ppzksnark_generator<ppzksnark_ppT>(cs);
+    return r1cs_gg_ppzksnark_generator<ppzksnark_ppT>(cs);
 }
 
 template<typename ppzksnark_ppT, typename FieldT, typename HashT>
-boost::optional<r1cs_ppzksnark_proof<ppzksnark_ppT>> generate_read_proof(r1cs_ppzksnark_proving_key<ppzksnark_ppT> proving_key,
+boost::optional<r1cs_gg_ppzksnark_proof<ppzksnark_ppT>> generate_read_proof(r1cs_gg_ppzksnark_proving_key<ppzksnark_ppT> proving_key,
                                                                     const size_t tree_depth, libff::bit_vector& leaf,
                                                                     libff::bit_vector& root, merkle_authentication_path& path,
                                                                     const size_t address, libff::bit_vector& address_bits)
@@ -40,18 +40,18 @@ boost::optional<r1cs_ppzksnark_proof<ppzksnark_ppT>> generate_read_proof(r1cs_pp
         return boost::none;
     }
 
-    return r1cs_ppzksnark_prover<ppzksnark_ppT>(proving_key, pb.primary_input(), pb.auxiliary_input());
+    return r1cs_gg_ppzksnark_prover<ppzksnark_ppT>(proving_key, pb.primary_input(), pb.auxiliary_input());
 }
 
 template<typename ppzksnark_ppT, typename FieldT>
-bool verify_read_proof(r1cs_ppzksnark_verification_key<ppzksnark_ppT> verification_key,
-                  r1cs_ppzksnark_proof<ppzksnark_ppT> proof, libff::bit_vector& root)
+bool verify_read_proof(r1cs_gg_ppzksnark_verification_key<ppzksnark_ppT> verification_key,
+                  r1cs_gg_ppzksnark_proof<ppzksnark_ppT> proof, libff::bit_vector& root)
 {
     r1cs_primary_input<FieldT> input;
     for (auto item : root) {
         input.push_back(FieldT(item));
     }
-    return r1cs_ppzksnark_verifier_strong_IC<ppzksnark_ppT>(verification_key, input, proof);
+    return r1cs_gg_ppzksnark_verifier_strong_IC<ppzksnark_ppT>(verification_key, input, proof);
 }
 
 template<typename HashT>
@@ -245,7 +245,7 @@ int main(int argc, char* argv[]) {
     } else if (std::string(argv[1]) == std::string("prove")) {
         //load pk
         std::fstream f_pk("merkle_pk.raw", std::ios_base::in);
-        r1cs_ppzksnark_proving_key<ppzksnark_ppT> pk;
+        r1cs_gg_ppzksnark_proving_key<ppzksnark_ppT> pk;
         f_pk >> pk;
         f_pk.close();
 
@@ -302,12 +302,12 @@ int main(int argc, char* argv[]) {
     } else if (std::string(argv[1]) == std::string("verify")) {
 	//load proof
         std::fstream pr("proof.raw", std::ios_base::in);
-        r1cs_ppzksnark_proof<ppzksnark_ppT> proof;
+        r1cs_gg_ppzksnark_proof<ppzksnark_ppT> proof;
         pr >> proof;
         pr.close();
 	//load vk
         std::fstream vkf("merkle_vk.raw", std::ios_base::in);
-        r1cs_ppzksnark_verification_key<ppzksnark_ppT> vk;
+        r1cs_gg_ppzksnark_verification_key<ppzksnark_ppT> vk;
         vkf >> vk;
         vkf.close();
 
