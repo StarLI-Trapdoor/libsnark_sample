@@ -8,7 +8,7 @@ The example shows how to generate proof for one merkle path on one merkle tree w
  ```
 2/ compile
  ```
- mkdir build; cd build; cmake ..
+ mkdir build; cd build; cmake ..; make
  ```
  You can find the "merkle" binary under the merkle folder.
 
